@@ -3,36 +3,38 @@ namespace: local.demo
 description: |-
   # Analysis Workflow
   KVストアに保存されたイベントから解析処理を行う Workflow
-  
+
   複数の解析タイプの結果を集約して処理を行い、最終的な分析結果を出力します。
   このワークフローは同じjob_idに対する複数の解析結果を必要とします。
-  
+
   ## 実行方法
-  
+
   ### 実行方法1: Webhook (トリガーキー経由)
   ```
   curl -v -X POST -H 'Content-Type: application/json' \
   -d '{"job_id": "aaaaaa"}' \
   'http://localhost:8080/api/v1/executions/webhook/local.demo/analysis_workflow/analysis_workflow_webhook'
   ```
-  
+
   ### 実行方法2: ネームスペース経由
   ```
   curl -v -X POST -H 'Content-Type: multipart/form-data' \
   -F 'message={"job_id": "aaaaaa"}' \
   'http://localhost:8080/api/v1/main/executions/local.demo/analysis_workflow'
   ```
-  
+
   ### 注意点
   このワークフローを実行する前に、同じjob_idでtype_aとtype_bの両方のデータがKVストアに登録されている必要があります。
 
-concurrency:
-  limit: 10
-
-triggers:
-  - id: webhook_trigger
-    type: io.kestra.plugin.core.trigger.Webhook
-    key: analysis_workflow_webhook
+inputs:
+  - id: required_analysis_types
+    type: ARRAY
+    itemType: STRING
+    defaults:
+      - type_a
+      - type_b
+    description: 処理を開始するのに必要とする解析結果
+    required: true
 
 tasks:
   - id: validate_job_id
@@ -42,89 +44,50 @@ tasks:
       - id: job_id_invalid
         type: io.kestra.plugin.core.execution.Fail
         errorMessage: "メッセージにjob_idが含まれていません"
-  
-  - id: define_analysis_types
-    type: io.kestra.plugin.core.log.Log
-    message: "必要な解析タイプ: type_a, type_b"
 
+  - id: check_analysis_status
+    type: io.kestra.plugin.core.flow.LoopUntil
+    tasks:
+      - id: get_analysis_results
+        type: io.kestra.plugin.core.flow.ForEach
+        values: "{{ inputs.required_analysis_types }}"
+        tasks:
+          - id: get_kv
+            type: io.kestra.plugin.core.kv.Get
+            key: "{{ trigger.body.job_id }}.{{ taskrun.value }}"
 
-  - id: logging_start
-    type: io.kestra.plugin.core.log.Log
-    message: 
-      - "Analysis Workflow 開始: job_id={{ trigger.body.job_id }}"
-      - "必要な解析タイプ: type_a, type_b"
-
-  - id: get_type_a
-    type: io.kestra.plugin.core.kv.Get
-    namespace: local.demo
-    description: type_aのデータを取得
-    key: "{{ trigger.body.job_id }}.type_a"
-
-  - id: get_type_b
-    type: io.kestra.plugin.core.kv.Get
-    namespace: local.demo
-    description: type_bのデータを取得
-    key: "{{ trigger.body.job_id }}.type_b"
+    condition: "{{ outputs.get_kv | keys | length == inputs.required_analysis_types | length }}"
+    checkFrequency:
+      interval: PT1M
 
   - id: process_data
     type: io.kestra.plugin.scripts.python.Script
     inputFiles:
-      type_a.json: "{{outputs.get_type_a.value}}"
-      type_b.json: "{{outputs.get_type_b.value}}"
-      job_id.json: |-
-        {"job_id": "{{ trigger.body.job_id }}"}
+      input.json: "{{outputs.get_kv}}"
+    beforeCommands:
+      - pip install kestra
     script: |
       import json
-      import os
-      import datetime
-      
-      # データを読み込む
-      with open('type_a.json', 'r') as f:
-          type_a_data = json.load(f)
-      
-      with open('type_b.json', 'r') as f:
-          type_b_data = json.load(f)
-      
-      with open('job_id.json', 'r') as f:
-          trigger_data = json.load(f)
-      
-      job_id = trigger_data.get('job_id')
-      
-      # データ処理ロジック
-      # 例: type_aとtype_bのデータを組み合わせた分析を行う
-      results = {"processed": {}}
-      
+      from kestra import Kestra
+
+      with open('input.json', 'r') as f:
+          input_data = json.load(f)
+
       # 処理例（実際の業務ロジックに置き換えてください）
-      type_a_value = type_a_data.get("data", {}).get("value", 0)
-      type_b_values = type_b_data.get("data", {}).get("values", [])
-      
-      if type_b_values:
-          avg_b = sum(type_b_values) / len(type_b_values)
-          results["processed"]["combined_score"] = type_a_value * avg_b
-          results["processed"]["insight"] = "type_aとtype_bのデータを掛け合わせた分析を実行"
-      
-      # 結果にメタデータを追加
-      results["metadata"] = {
-          "job_id": job_id,
-          "timestamp": datetime.datetime.now().isoformat(),
-          "status": "completed"
+      results = {
+          key: value["value"]["data"]
+          for key, value in input_data.items()
       }
-      
-      # 処理結果を出力
-      with open('analysis_results.json', 'w') as f:
-          json.dump(results, f, indent=2)
-      
-      print(f"データ処理が完了しました: {results}")
-    outputFiles:
-      - analysis_results.json
+      Kestra.outputs({ "results": results })
 
-  - id: result_processing
+  - id: outputs_results
     type: io.kestra.plugin.core.log.Log
-    description: 結果の処理の概要を表示
-    message:
-      - "解析結果を生成しました"
+    message: "分析結果: {{ outputs.process_data.vars.results }}"
 
-  - id: logging_result
-    type: io.kestra.plugin.core.log.Log
-    message:
-      - "解析処理が完了しました: job_id={{ trigger.body.job_id }}"
+triggers:
+  - id: webhook_trigger
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: analysis_workflow_webhook
+
+concurrency:
+  limit: 10

@@ -3,19 +3,19 @@ namespace: local.demo
 description: |-
   # Proxy Workflow
   PubSub からのメッセージを KVストアに保存する Proxy Workflow
-  
+
   RESTエンドポイントから受け取ったメッセージをKVストアに保存し、
   job_idとanalysis_typeに基づいてイベントデータを整理します。
-  
+
   ## 実行方法
-  
+
   ### 実行方法1: Webhook (トリガーキー経由)
   ```
   curl -v -X POST -H 'Content-Type: application/json' \
-  -d '{"job_id": "aaaaaa", "analysis_type": "type_a", "data": {"value": 40}}' \
+  -d '{"job_id": "aaaaaa", "analysis_type": "type_b", "data": {"value": 40}}' \
   'http://localhost:8080/api/v1/executions/webhook/local.demo/proxy_workflow/proxy_workflow_webhook'
   ```
-  
+
   ### 実行方法2: ネームスペース経由
   ```
   curl -v -X POST -H 'Content-Type: multipart/form-data' \
@@ -34,27 +34,25 @@ tasks:
     message:
       - "Proxy Workflow 開始"
       - "受信データ: {{trigger.body}}"
-  
-  - id: validate_job_id
-    type: io.kestra.plugin.core.flow.If
-    condition: "{{ trigger.body.job_id is not defined }}"
-    then:
-      - id: job_id_invalid
-        type: io.kestra.plugin.core.execution.Fail
-        errorMessage: "メッセージにjob_idが含まれていません"
-  
-  - id: validate_analysis_type
-    type: io.kestra.plugin.core.flow.If
-    condition: "{{ trigger.body.analysis_type is not defined }}"
-    then:
-      - id: analysis_type_invalid
-        type: io.kestra.plugin.core.execution.Fail
-        errorMessage: "メッセージにanalysis_typeが含まれていません"
-  
-  - id: validation_passed
-    type: io.kestra.plugin.core.log.Log
-    message: "メッセージを検証しました: job_id={{trigger.body.job_id}}, analysis_type={{trigger.body.analysis_type}}"
-  
+
+  - id: validate
+    type: io.kestra.plugin.core.flow.Parallel
+    tasks:
+      - id: validate_job_id
+        type: io.kestra.plugin.core.flow.If
+        condition: "{{ trigger.body.job_id is not defined }}"
+        then:
+          - id: job_id_invalid
+            type: io.kestra.plugin.core.execution.Fail
+            errorMessage: "メッセージにjob_idが含まれていません"
+
+      - id: validate_analysis_type
+        type: io.kestra.plugin.core.flow.If
+        condition: "{{ trigger.body.analysis_type is not defined }}"
+        then:
+          - id: analysis_type_invalid
+            type: io.kestra.plugin.core.execution.Fail
+            errorMessage: "メッセージにanalysis_typeが含まれていません"
 
   - id: set_kv
     type: io.kestra.plugin.core.kv.Set
@@ -64,8 +62,8 @@ tasks:
     value: "{{trigger.body}}"
     overwrite: true
     kvType: JSON
-    ttl: PT24H  # 24時間の有効期限
-  
+    ttl: PT24H # 24時間の有効期限
+
   - id: logging_result
     type: io.kestra.plugin.core.log.Log
     message:
