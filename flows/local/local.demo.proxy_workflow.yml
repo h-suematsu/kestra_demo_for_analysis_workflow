@@ -3,43 +3,67 @@ namespace: local.demo
 description: |-
   # Proxy Workflow
   PubSub からのメッセージを KVストアに保存する Proxy Workflow
-inputs:
-  - type: STRING
-    id: analysis_type
-    description: 解析種別
-    required: true
-  - type: STRING
-    id: job_id
-    description: Curia Stream の job_id
-    required: true
-  - id: message
-    type: JSON
-    description: PubSub message
-    required: true
+  
+  RESTエンドポイントから受け取ったメッセージをKVストアに保存し、
+  job_idとanalysis_typeに基づいてイベントデータを整理します。
 
 triggers:
   - id: webhook_trigger
     type: io.kestra.plugin.core.trigger.Webhook
-    key: aaaaa
+    key: proxy_workflow_webhook
 
 tasks:
   - id: logging_start
     type: io.kestra.plugin.core.log.Log
     message:
-      - Hello World! 🚀
-      - "analysis_type: {{inputs.analysis_type}}"
-      - "job_id: {{inputs.job_id}}"
-      - "message: {{inputs.message}}"
+      - "Proxy Workflow 開始"
+      - "受信データ: {{trigger.body}}"
+  
+  - id: parse_message
+    type: io.kestra.plugin.scripts.python.Script
+    inputFiles:
+      message.json: "{{trigger.body}}"
+    script: |
+      import json
+      import os
+      
+      # 入力メッセージを検証
+      with open('message.json', 'r') as f:
+          message = json.load(f)
+      
+      # メッセージからjob_idとanalysis_typeを取得
+      job_id = message.get('job_id')
+      analysis_type = message.get('analysis_type')
+      
+      if not job_id or not analysis_type:
+          raise ValueError("メッセージにjob_idまたはanalysis_typeが含まれていません")
+      
+      # 検証結果を出力
+      result = {
+          "job_id": job_id,
+          "analysis_type": analysis_type,
+          "message": message
+      }
+      
+      with open('parsed_data.json', 'w') as f:
+          json.dump(result, f)
+      
+      print(f"メッセージを検証しました: job_id={job_id}, analysis_type={analysis_type}")
+    outputFiles:
+      - parsed_data.json
+
   - id: set_kv
     type: io.kestra.plugin.core.kv.Set
-    namespace: events.demo
-    description: 解析結果を保存
-    key: job.{{inputs.job_id}}.{{inputs.analysis_type}}
-    value: "{{inputs.message}}"
+    namespace: local.demo
+    description: 解析結果をKVストアに保存
+    key: "{{outputs.parse_message.files.parsed_data.json.job_id}}.{{outputs.parse_message.files.parsed_data.json.analysis_type}}"
+    value: "{{trigger.body}}"
     overwrite: true
     kvType: JSON
-    ttl: PT12H
+    ttl: PT24H  # 24時間の有効期限
+  
   - id: logging_result
     type: io.kestra.plugin.core.log.Log
     message:
-      - Completed Setting to KV Store !!
+      - "イベント保存完了: key={{outputs.parse_message.files.parsed_data.json.job_id}}.{{outputs.parse_message.files.parsed_data.json.analysis_type}}"
+      - "KVストアへの登録が完了しました"

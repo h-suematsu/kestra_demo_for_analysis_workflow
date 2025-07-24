@@ -2,22 +2,127 @@ id: analysis_workflow
 namespace: local.demo
 description: |-
   # Analysis Workflow
-  KVストアに保存されたイベントから処理を行う Workflow
+  KVストアに保存されたイベントから解析処理を行う Workflow
+  
+  複数の解析タイプの結果を集約して処理を行い、最終的な分析結果を出力します。
+  このワークフローは同じjob_idに対する複数の解析結果を必要とします。
 
 concurrency:
   limit: 10
-  
-inputs:
-  - type: STRING
-    id: job_id
-    required: true
 
 triggers:
   - id: webhook_trigger
     type: io.kestra.plugin.core.trigger.Webhook
-    key: aaaaa
+    key: analysis_workflow_webhook
 
 tasks:
+  - id: parse_trigger
+    type: io.kestra.plugin.scripts.python.Script
+    inputFiles:
+      trigger_body.json: "{{trigger.body}}"
+    script: |
+      import json
+      import os
+      
+      # 入力メッセージを検証
+      with open('trigger_body.json', 'r') as f:
+          trigger_data = json.load(f)
+      
+      # メッセージからjob_idを取得
+      job_id = trigger_data.get('job_id')
+      
+      if not job_id:
+          raise ValueError("メッセージにjob_idが含まれていません")
+      
+      # 検証結果を出力
+      result = {
+          "job_id": job_id,
+          "required_analysis_types": ["type_a", "type_b"]
+      }
+      
+      with open('parsed_trigger.json', 'w') as f:
+          json.dump(result, f)
+      
+      print(f"トリガーを検証しました: job_id={job_id}")
+    outputFiles:
+      - parsed_trigger.json
+
   - id: logging_start
     type: io.kestra.plugin.core.log.Log
-    message: start {{inputs.job_id}}
+    message: 
+      - "Analysis Workflow 開始: job_id={{outputs.parse_trigger.files.parsed_trigger.json.job_id}}"
+      - "必要な解析タイプ: {{outputs.parse_trigger.files.parsed_trigger.json.required_analysis_types}}"
+
+  - id: get_type_a
+    type: io.kestra.plugin.core.kv.Get
+    namespace: local.demo
+    description: type_aのデータを取得
+    key: "{{outputs.parse_trigger.files.parsed_trigger.json.job_id}}.type_a"
+
+  - id: get_type_b
+    type: io.kestra.plugin.core.kv.Get
+    namespace: local.demo
+    description: type_bのデータを取得
+    key: "{{outputs.parse_trigger.files.parsed_trigger.json.job_id}}.type_b"
+
+  - id: process_data
+    type: io.kestra.plugin.scripts.python.Script
+    inputFiles:
+      type_a.json: "{{outputs.get_type_a.value}}"
+      type_b.json: "{{outputs.get_type_b.value}}"
+      parsed_trigger.json: "{{outputs.parse_trigger.files.parsed_trigger.json}}"
+    script: |
+      import json
+      import os
+      import datetime
+      
+      # データを読み込む
+      with open('type_a.json', 'r') as f:
+          type_a_data = json.load(f)
+      
+      with open('type_b.json', 'r') as f:
+          type_b_data = json.load(f)
+      
+      with open('parsed_trigger.json', 'r') as f:
+          trigger_data = json.load(f)
+      
+      job_id = trigger_data.get('job_id')
+      
+      # データ処理ロジック
+      # 例: type_aとtype_bのデータを組み合わせた分析を行う
+      results = {"processed": {}}
+      
+      # 処理例（実際の業務ロジックに置き換えてください）
+      type_a_value = type_a_data.get("data", {}).get("value", 0)
+      type_b_values = type_b_data.get("data", {}).get("values", [])
+      
+      if type_b_values:
+          avg_b = sum(type_b_values) / len(type_b_values)
+          results["processed"]["combined_score"] = type_a_value * avg_b
+          results["processed"]["insight"] = "type_aとtype_bのデータを掛け合わせた分析を実行"
+      
+      # 結果にメタデータを追加
+      results["metadata"] = {
+          "job_id": job_id,
+          "timestamp": datetime.datetime.now().isoformat(),
+          "status": "completed"
+      }
+      
+      # 処理結果を出力
+      with open('analysis_results.json', 'w') as f:
+          json.dump(results, f, indent=2)
+      
+      print(f"データ処理が完了しました: {results}")
+    outputFiles:
+      - analysis_results.json
+
+  - id: result_processing
+    type: io.kestra.plugin.core.log.Log
+    description: 結果の処理の概要を表示
+    message:
+      - "解析結果を生成しました"
+
+  - id: logging_result
+    type: io.kestra.plugin.core.log.Log
+    message:
+      - "解析処理が完了しました: job_id={{outputs.parse_trigger.files.parsed_trigger.json.job_id}}"
