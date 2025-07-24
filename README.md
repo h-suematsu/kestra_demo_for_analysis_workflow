@@ -73,6 +73,16 @@ curl -v -X POST -H 'Content-Type: multipart/form-data' \
 'http://localhost:8080/api/v1/main/executions/events.demo/proxy_workflow'
 ```
 
+## ワークフローの validate
+
+https://kestra.io/docs/api-reference/open-source#post-/api/v1/flows/validate
+
+```bash
+curl -v -X POST -H 'Content-Type: application/x-yaml' \
+--data-binary @flows/local/<workflow_name>.yml \
+'http://localhost:8080/api/v1/flows/validate'
+```
+
 ## テストの実行
 
 ```bash
