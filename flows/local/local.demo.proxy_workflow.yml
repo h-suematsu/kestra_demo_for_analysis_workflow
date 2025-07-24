@@ -6,6 +6,22 @@ description: |-
   
   RESTエンドポイントから受け取ったメッセージをKVストアに保存し、
   job_idとanalysis_typeに基づいてイベントデータを整理します。
+  
+  ## 実行方法
+  
+  ### 実行方法1: Webhook (トリガーキー経由)
+  ```
+  curl -v -X POST -H 'Content-Type: application/json' \
+  -d '{"job_id": "aaaaaa", "analysis_type": "type_a", "data": {"value": 40}}' \
+  'http://localhost:8080/api/v1/executions/webhook/local.demo/proxy_workflow/proxy_workflow_webhook'
+  ```
+  
+  ### 実行方法2: ネームスペース経由
+  ```
+  curl -v -X POST -H 'Content-Type: multipart/form-data' \
+  -F 'message={"job_id": "aaaaaa", "analysis_type": "type_a", "data": {"value": 40}}' \
+  'http://localhost:8080/api/v1/main/executions/local.demo/proxy_workflow'
+  ```
 
 triggers:
   - id: webhook_trigger
@@ -19,44 +35,32 @@ tasks:
       - "Proxy Workflow 開始"
       - "受信データ: {{trigger.body}}"
   
-  - id: parse_message
-    type: io.kestra.plugin.scripts.python.Script
-    inputFiles:
-      message.json: "{{trigger.body}}"
-    script: |
-      import json
-      import os
-      
-      # 入力メッセージを検証
-      with open('message.json', 'r') as f:
-          message = json.load(f)
-      
-      # メッセージからjob_idとanalysis_typeを取得
-      job_id = message.get('job_id')
-      analysis_type = message.get('analysis_type')
-      
-      if not job_id or not analysis_type:
-          raise ValueError("メッセージにjob_idまたはanalysis_typeが含まれていません")
-      
-      # 検証結果を出力
-      result = {
-          "job_id": job_id,
-          "analysis_type": analysis_type,
-          "message": message
-      }
-      
-      with open('parsed_data.json', 'w') as f:
-          json.dump(result, f)
-      
-      print(f"メッセージを検証しました: job_id={job_id}, analysis_type={analysis_type}")
-    outputFiles:
-      - parsed_data.json
+  - id: validate_job_id
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{ trigger.body.job_id is not defined }}"
+    then:
+      - id: job_id_invalid
+        type: io.kestra.plugin.core.execution.Fail
+        errorMessage: "メッセージにjob_idが含まれていません"
+  
+  - id: validate_analysis_type
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{ trigger.body.analysis_type is not defined }}"
+    then:
+      - id: analysis_type_invalid
+        type: io.kestra.plugin.core.execution.Fail
+        errorMessage: "メッセージにanalysis_typeが含まれていません"
+  
+  - id: validation_passed
+    type: io.kestra.plugin.core.log.Log
+    message: "メッセージを検証しました: job_id={{trigger.body.job_id}}, analysis_type={{trigger.body.analysis_type}}"
+  
 
   - id: set_kv
     type: io.kestra.plugin.core.kv.Set
     namespace: local.demo
     description: 解析結果をKVストアに保存
-    key: "{{outputs.parse_message.files.parsed_data.json.job_id}}.{{outputs.parse_message.files.parsed_data.json.analysis_type}}"
+    key: "{{trigger.body.job_id}}.{{trigger.body.analysis_type}}"
     value: "{{trigger.body}}"
     overwrite: true
     kvType: JSON
@@ -65,5 +69,5 @@ tasks:
   - id: logging_result
     type: io.kestra.plugin.core.log.Log
     message:
-      - "イベント保存完了: key={{outputs.parse_message.files.parsed_data.json.job_id}}.{{outputs.parse_message.files.parsed_data.json.analysis_type}}"
+      - "イベント保存完了: key={{trigger.body.job_id}}.{{trigger.body.analysis_type}}"
       - "KVストアへの登録が完了しました"
