@@ -30,6 +30,7 @@ services:
       - kestra-data:/app/storage
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/kestra-wd:/tmp/kestra-wd
+      - ./flows/local:/app/flows
     environment:
       KESTRA_CONFIGURATION: |
         datasources:
@@ -55,6 +56,14 @@ services:
             tmpDir:
               path: /tmp/kestra-wd/tmp
           url: http://localhost:8080/
+          tutorialFlows:
+            enabled: false
+        micronaut:
+          io:
+            watch:
+              enabled: true
+              paths:
+                - /app/flows
     ports:
       - "8080:8080"
       - "8081:8081"

@@ -1,0 +1,23 @@
+id: analysis_workflow
+namespace: local.demo
+description: |-
+  # Analysis Workflow
+  KVストアに保存されたイベントから処理を行う Workflow
+
+concurrency:
+  limit: 10
+  
+inputs:
+  - type: STRING
+    id: job_id
+    required: true
+
+triggers:
+  - id: webhook_trigger
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: aaaaa
+
+tasks:
+  - id: logging_start
+    type: io.kestra.plugin.core.log.Log
+    message: start {{inputs.job_id}}

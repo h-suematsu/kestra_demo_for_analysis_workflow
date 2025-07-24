@@ -95,3 +95,13 @@ uv run ruff check --fix .
 # コードフォーマット
 uv run ruff format .
 ```
+
+## ローカルでのワークフロー開発
+
+ローカルと Kestra UI でワークフローを同期します。
+https://kestra.io/docs/how-to-guides/local-flow-sync
+
+- `flows/local` ディレクトリに配置
+- ファイル名を、`<namespace>.<flow_id>.yml` に設定する
+
+作成・削除もローカル <=> Kestra UI で同期されます。

@@ -1,0 +1,45 @@
+id: proxy_workflow
+namespace: local.demo
+description: |-
+  # Proxy Workflow
+  PubSub からのメッセージを KVストアに保存する Proxy Workflow
+inputs:
+  - type: STRING
+    id: analysis_type
+    description: 解析種別
+    required: true
+  - type: STRING
+    id: job_id
+    description: Curia Stream の job_id
+    required: true
+  - id: message
+    type: JSON
+    description: PubSub message
+    required: true
+
+triggers:
+  - id: webhook_trigger
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: aaaaa
+
+tasks:
+  - id: logging_start
+    type: io.kestra.plugin.core.log.Log
+    message:
+      - Hello World! 🚀
+      - "analysis_type: {{inputs.analysis_type}}"
+      - "job_id: {{inputs.job_id}}"
+      - "message: {{inputs.message}}"
+  - id: set_kv
+    type: io.kestra.plugin.core.kv.Set
+    namespace: events.demo
+    description: 解析結果を保存
+    key: job.{{inputs.job_id}}.{{inputs.analysis_type}}
+    value: "{{inputs.message}}"
+    overwrite: true
+    kvType: JSON
+    ttl: PT12H
+  - id: logging_result
+    type: io.kestra.plugin.core.log.Log
+    message:
+      - Completed Setting to KV Store !!
