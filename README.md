@@ -54,7 +54,7 @@ brew install uv
 uv venv
 
 # 依存関係のインストール
-uv sync --all-groups --extra dev
+uv sync --all-package --all-groups
 ```
 
 ### Kestra サーバーのセットアップ
@@ -87,7 +87,7 @@ curl -v -X POST -H 'Content-Type: application/x-yaml' \
 
 ```bash
 # 依存関係の同期
-uv sync --all-groups --extra dev
+uv sync --all-packages --all-groups
 
 # テストの実行
 uv run pytest test/
