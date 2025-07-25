@@ -1,5 +1,5 @@
-id: proxy_workflow
-namespace: local.demo
+id: proxy
+namespace: git.demo
 description: |-
   # Proxy Workflow
   PubSub からのメッセージを KVストアに保存する Proxy Workflow

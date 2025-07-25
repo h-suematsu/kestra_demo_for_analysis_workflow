@@ -1,0 +1,13 @@
+id: sync_files_from_git
+namespace: system
+
+tasks:
+  - id: sync_files
+    type: io.kestra.plugin.git.SyncNamespaceFiles
+    username: h-suematsu
+    password: "{{ secret('GITHUB_ACCESS_TOKEN') }}"
+    url: https://github.com/h-suematsu/kestra_demo_for_analysis_workflow/
+    branch: main
+    namespace: git
+    gitDirectory: src
+    dryRun: true

@@ -1,5 +1,5 @@
-id: analysis_workflow
-namespace: local.demo
+id: analysis
+namespace: git.demo
 description: |-
   # Analysis Workflow
   KVストアに保存されたイベントから解析処理を行う Workflow
