@@ -9,6 +9,9 @@ tasks:
     url: https://github.com/h-suematsu/kestra_demo_for_analysis_workflow/
     branch: main
     targetNamespace: git
-    gitDirectory: flows
-    dryRun: true
+    gitDirectory: flows/git
+    dryRun: false
     includeChildNamespaces: true
+    delete: true
+    ignoreInvalidFlows: true
+    cloneSubmodules: true
