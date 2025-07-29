@@ -65,24 +65,17 @@ tasks:
           maxDuration: PT12H
 
   - id: process_data
-    type: io.kestra.plugin.scripts.python.Script
-    inputFiles:
-      input.json: "{{outputs.get_kv}}"
+    type: io.kestra.plugin.scripts.python.Commands
     beforeCommands:
       - pip install kestra
-    script: |
-      import json
-      from kestra import Kestra
-
-      with open('input.json', 'r') as f:
-          input_data = json.load(f)
-
-      # 処理例（実際の業務ロジックに置き換えてください）
-      results = {
-          key: value["value"]["data"]
-          for key, value in input_data.items()
-      }
-      Kestra.outputs({ "results": results })
+    commands:
+      - python analysis_workflow/process_data.py
+    inputFiles:
+      input.json: "{{ outputs.get_kv }}"
+    namespaceFiles:
+      enabled: true
+      namespaces:
+        - git
 
   - id: outputs_results
     type: io.kestra.plugin.core.log.Log
