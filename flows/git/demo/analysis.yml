@@ -50,20 +50,19 @@ tasks:
         type: io.kestra.plugin.core.execution.Fail
         errorMessage: "メッセージにjob_idが含まれていません"
 
-  - id: check_analysis_status
-    type: io.kestra.plugin.core.flow.LoopUntil
+  - id: get_analysis_results
+    type: io.kestra.plugin.core.flow.ForEach
+    values: "{{ inputs.required_analysis_types }}"
     tasks:
-      - id: get_analysis_results
-        type: io.kestra.plugin.core.flow.ForEach
-        values: "{{ inputs.required_analysis_types }}"
-        tasks:
-          - id: get_kv
-            type: io.kestra.plugin.core.kv.Get
-            key: "{{ trigger.body.job_id }}.{{ taskrun.value }}"
-
-    condition: "{{ outputs.get_kv | keys | length == inputs.required_analysis_types | length }}"
-    checkFrequency:
-      interval: PT1M
+      - id: get_kv
+        type: io.kestra.plugin.core.kv.Get
+        key: "{{ trigger.body.job_id }}.{{ taskrun.value }}"
+        errorOnMissing: true
+        retry:
+          type: exponential
+          interval: PT10S
+          maxInterval: PT10M
+          maxDuration: PT12H
 
   - id: process_data
     type: io.kestra.plugin.scripts.python.Script
