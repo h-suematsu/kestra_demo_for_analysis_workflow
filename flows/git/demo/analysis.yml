@@ -13,18 +13,23 @@ description: |-
   ```
   curl -v -X POST -H 'Content-Type: application/json' \
   -d '{"job_id": "aaaaaa"}' \
-  'http://localhost:8080/api/v1/executions/webhook/local.demo/analysis_workflow/analysis_workflow_webhook'
+  'http://localhost:8080/api/v1/executions/webhook/git.demo/analysis/analysis_webhook'
   ```
 
   ### 実行方法2: ネームスペース経由
   ```
   curl -v -X POST -H 'Content-Type: multipart/form-data' \
   -F 'message={"job_id": "aaaaaa"}' \
-  'http://localhost:8080/api/v1/main/executions/local.demo/analysis_workflow'
+  'http://localhost:8080/api/v1/main/executions/git.demo/analysis'
   ```
 
   ### 注意点
   このワークフローを実行する前に、同じjob_idでtype_aとtype_bの両方のデータがKVストアに登録されている必要があります。
+
+triggers:
+  - id: webhook_trigger
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: analysis_webhook
 
 inputs:
   - id: required_analysis_types
@@ -83,11 +88,6 @@ tasks:
   - id: outputs_results
     type: io.kestra.plugin.core.log.Log
     message: "分析結果: {{ outputs.process_data.vars.results }}"
-
-triggers:
-  - id: webhook_trigger
-    type: io.kestra.plugin.core.trigger.Webhook
-    key: analysis_workflow_webhook
 
 concurrency:
   limit: 10

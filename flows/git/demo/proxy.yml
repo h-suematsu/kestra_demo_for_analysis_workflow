@@ -12,21 +12,21 @@ description: |-
   ### 実行方法1: Webhook (トリガーキー経由)
   ```
   curl -v -X POST -H 'Content-Type: application/json' \
-  -d '{"job_id": "aaaaaa", "analysis_type": "type_b", "data": {"value": 40}}' \
-  'http://localhost:8080/api/v1/executions/webhook/local.demo/proxy_workflow/proxy_workflow_webhook'
+  -d '{"job_id": "aaaaaa", "analysis_type": "type_a", "data": {"value": 40}}' \
+  'http://localhost:8080/api/v1/executions/webhook/git.demo/proxy/proxy_webhook'
   ```
 
   ### 実行方法2: ネームスペース経由
   ```
   curl -v -X POST -H 'Content-Type: multipart/form-data' \
   -F 'message={"job_id": "aaaaaa", "analysis_type": "type_a", "data": {"value": 40}}' \
-  'http://localhost:8080/api/v1/main/executions/local.demo/proxy_workflow'
+  'http://localhost:8080/api/v1/main/executions/git.demo/proxy'
   ```
 
 triggers:
   - id: webhook_trigger
     type: io.kestra.plugin.core.trigger.Webhook
-    key: proxy_workflow_webhook
+    key: proxy_webhook
 
 tasks:
   - id: logging_start
@@ -56,7 +56,7 @@ tasks:
 
   - id: set_kv
     type: io.kestra.plugin.core.kv.Set
-    namespace: local.demo
+    namespace: git.demo
     description: 解析結果をKVストアに保存
     key: "{{trigger.body.job_id}}.{{trigger.body.analysis_type}}"
     value: "{{trigger.body}}"
